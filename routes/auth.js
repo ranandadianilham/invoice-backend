@@ -90,19 +90,80 @@ exports.login = async (req, res, next) => {
   }
 };
 
-exports.userAuth = (req, res, next) => {
-    const token = req.cookies.jwt
-    if (token) {
-      jwt.verify(token, jwtSecret, (err, decodedToken) => {
-        if (err) {
-          return res.status(401).json({ message: "Not authorized" })
-        } else {
-          next()
-        }
-      })
-    } else {
-      return res
-        .status(401)
-        .json({ message: "Not authorized, token not available" })
-    }
+exports.register1 = async (req, res) => {
+  const { username, password } = req.body;
+
+  // Check if the user already exists
+  const existingUser = User.find({ username });
+  if (existingUser) {
+    return res.status(400).json({ message: "User already exists" });
   }
+
+  try {
+    // Hash the user's password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Store the new user
+    users.push({ username, password: hashedPassword });
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Error registering user" });
+  }
+};
+
+exports.login1 = async (req, res) => {
+  // In a real-world scenario, you would typically validate the user's credentials here
+  const { username, password } = req.body;
+  //const hashedPass = await bcrypt.hash(password, 10);
+  const user = await User.find({ username })
+    .then(async (usr) => {
+      let valUser = usr[0];
+      const isMatch = await bcrypt.compare(password, valUser.password);
+      console.log("token", password, valUser, isMatch);
+      if (!isMatch) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+
+      const token = jwt.sign({ username }, jwtSecret, { expiresIn: "1h" });
+      //console.log('token', ( token).toString())
+      res.json({ token });
+    })
+    .catch((err) => {
+      res
+        .status(500)
+        .json({ message: "Error logging in user", more: err.message });
+    });
+  if (!user) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+};
+
+exports.userAuth = (req, res, next) => {
+  const token = req.cookies.jwt;
+  if (token) {
+    jwt.verify(token, jwtSecret, (err, decodedToken) => {
+      if (err) {
+        return res.status(401).json({ message: "Not authorized" });
+      } else {
+        next();
+      }
+    });
+  } else {
+    return res
+      .status(401)
+      .json({ message: "Not authorized, token not available" });
+  }
+};
+exports.authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];  // Bearer <token>
+
+  if (token == null) return res.sendStatus(401);  // No token present
+
+  jwt.verify(token, jwtSecret, (err, user) => {
+      if (err) return res.sendStatus(403);  // Invalid token
+
+      req.user = user;
+      next();
+  });
+};
