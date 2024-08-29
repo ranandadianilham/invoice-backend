@@ -56,7 +56,7 @@ exports.EditInvoice = async (req, res) => {
   } = req.body;
 
   try {
-    await Invoice.updateOne(
+    await Invoice.findOneAndUpdate(
       {
         invoiceNumber: require("crypto").randomUUID(),
         invoiceDate: new Date(),
